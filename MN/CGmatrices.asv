@@ -1,0 +1,100 @@
+% Circuit parameters
+R1 = 1;
+C = 0.25;
+R2 = 2;
+L = 0.2;
+R3 = 10;
+alpha = 100;
+R4 = 0.1;
+RO = 1000;
+
+% Constructing the C matrix
+C_mat = [0 0 0 0 C 0];
+
+% Constructing the G matrix
+G_mat = [1/R1 + 1/RO, -1/RO, 0, 0, 0, -1/RO;
+    -1/RO, 1/R2 + 1/RO + 1/R4, -1/RO, 0, 0, 1;
+    0, -1/RO, 1/RO, 0, 0, 1;                
+    0, 0, 0, 0, j*C*2*pi, 1;                  
+    0, 0, -1/R3, 0, 0, 1/R3;                  
+    0, 0, 0, -alpha, 1, 0];
+
+% AC sweep range
+w_min = 1;
+w_max = 1000;
+num_points = 1000;
+w_vec = logspace(log10(w_min), log10(w_max), num_points);
+
+% Initializing the output voltage and gain vectors
+VO_vec = [];
+gain_vec = [];
+
+% AC sweep loop
+for w = w_vec
+    % Constructing the F vector
+    F_vec = [1/R1; 0; 0; 0; 0; 0];
+    
+    % Constructing the A matrix
+    A_mat = G_mat + j*w*C_mat;
+    
+    % Solving for the nodal voltages
+    V_vec = A_mat\F_vec;
+    
+    % Appending the VO voltage to its respective vector
+    VO_vec = [VO_vec V_vec(1)];
+    
+    % Computing the gain and appending it to its respective vector
+    gain = 20*log10(abs(V_vec(1)/F_vec(1)));
+    gain_vec = [gain_vec gain];
+end
+
+% Plotting VO and VO/V1 gain in dB vs. w
+figure;
+subplot(2, 1, 1);
+semilogx(w_vec, abs(VO_vec), 'b');
+xlabel('\omega (rad/s)');
+ylabel('|VO| (V)');
+title('Output Voltage vs. Frequency');
+
+subplot(2, 1, 2);
+semilogx(w_vec, gain_vec, 'r');
+xlabel('\omega (rad/s)');
+ylabel('|VO/V1| (dB)');
+title('Gain vs. Frequency');
+
+% AC analysis
+f = logspace(1, 5, 1000);
+w = 2*pi*f;
+Vout_ac = zeros(length(w), 1);
+V1_ac = ones(length(w), 1);
+gain = zeros(1000, 1);
+C_perturbations = 0.05*randn(1000,1); % generate 1000 random perturbations on C
+
+for i=1:length(w)
+    s = 1j*w(i);
+    A = G_mat + s*C_mat;
+    V = A\F_vec;
+    Vout_ac(i) = abs(V(6));
+    gain(i) = 20*log10(abs(V(6)/V(1)));
+    
+    % perturb C and compute gain
+    C_perturbed = C_mat + diag([0; 0; 0; C_perturbations(i); 0; 0]).*C_mat;
+    A = G_mat + s*C_perturbed;
+    V_perturbed = A\F_vec;
+    gain(i) = 20*log10(abs(V_perturbed(6)/V_perturbed(1)));
+end
+
+% plot gain vs. frequency
+figure(3)
+semilogx(f, gain)
+title('Gain vs. Frequency with C Perturbations')
+xlabel('Frequency (Hz)')
+ylabel('Gain (dB)')
+
+% plot histogram of gain values
+figure(4)
+histogram(gain)
+title('Histogram of Gain Values with C Perturbations')
+xlabel('Gain (dB)')
+ylabel('Count')
+
